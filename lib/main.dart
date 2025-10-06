@@ -1,122 +1,198 @@
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'dart:io' show Platform;
+import 'core/services/alarm_service.dart';
+import 'data/repositories/alarm_repository.dart';
+import 'data/repositories/alarm_group_repository.dart';
+import 'domain/models/alarm.dart';
+import 'domain/models/alarm_group.dart';
+import 'presentation/providers/alarm_provider.dart';
+import 'presentation/providers/alarm_group_provider.dart';
+import 'presentation/providers/stopwatch_provider.dart';
+import 'presentation/providers/timer_provider.dart';
+import 'presentation/screens/home_screen.dart';
 
-void main() {
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+
+// Cross-platform color scheme builder
+class CrossPlatformColorBuilder extends StatefulWidget {
+  final Widget Function(ColorScheme lightScheme, ColorScheme darkScheme) builder;
+
+  const CrossPlatformColorBuilder({super.key, required this.builder});
+
+  @override
+  State<CrossPlatformColorBuilder> createState() => _CrossPlatformColorBuilderState();
+}
+
+class _CrossPlatformColorBuilderState extends State<CrossPlatformColorBuilder> {
+  ColorScheme? _lightScheme;
+  ColorScheme? _darkScheme;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeColors();
+  }
+
+  Future<void> _initializeColors() async {
+    if (Platform.isAndroid) {
+      try {
+        // Try to use dynamic colors on Android
+        // Note: This is a simplified version. In a real app, you'd use the dynamic_color package
+        // For now, we'll just use the fallback colors
+        _setFallbackColors();
+      } catch (e) {
+        _setFallbackColors();
+      }
+    } else {
+      _setFallbackColors();
+    }
+  }
+
+  void _setFallbackColors() {
+    setState(() {
+      _lightScheme = ColorScheme.fromSeed(
+        seedColor: Colors.deepPurple,
+        brightness: Brightness.light,
+      );
+      _darkScheme = ColorScheme.fromSeed(
+        seedColor: Colors.deepPurple,
+        brightness: Brightness.dark,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_lightScheme == null || _darkScheme == null) {
+      // Loading state
+      return const MaterialApp(
+        home: Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
+    return widget.builder(_lightScheme!, _darkScheme!);
+  }
+}
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+  Hive.registerAdapter(AlarmAdapter());
+  Hive.registerAdapter(AlarmGroupAdapter());
+
+  // Initialize notifications
+  const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('app_icon');
+  const InitializationSettings initializationSettings = InitializationSettings(android: initializationSettingsAndroid);
+  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
+  // Initialize alarm service
+  await AlarmService.initialize();
+
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
-    );
-  }
-}
+    return CrossPlatformColorBuilder(
+      builder: (ColorScheme lightScheme, ColorScheme darkScheme) {
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
- 
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+        return MultiProvider(
+          providers: [
+            Provider<AlarmRepository>(create: (_) => HiveAlarmRepository()),
+            Provider<AlarmGroupRepository>(create: (_) => HiveAlarmGroupRepository()),
+            ChangeNotifierProxyProvider<AlarmRepository, AlarmProvider>(
+              create: (context) => AlarmProvider(context.read<AlarmRepository>()),
+              update: (context, repository, previous) => previous ?? AlarmProvider(repository),
             ),
+            ChangeNotifierProxyProvider<AlarmGroupRepository, AlarmGroupProvider>(
+              create: (context) => AlarmGroupProvider(context.read<AlarmGroupRepository>()),
+              update: (context, repository, previous) => previous ?? AlarmGroupProvider(repository),
+            ),
+            ChangeNotifierProvider<StopwatchProvider>(create: (_) => StopwatchProvider()),
+            ChangeNotifierProvider<TimerProvider>(create: (_) => TimerProvider(const Duration(minutes: 5))),
           ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+          child: MaterialApp(
+            title: 'Alarum',
+            theme: ThemeData(
+              colorScheme: lightScheme,
+              useMaterial3: true,
+              fontFamily: 'Roboto',
+              textTheme: const TextTheme(
+                displayLarge: TextStyle(
+                  fontSize: 72,
+                  fontWeight: FontWeight.w300,
+                  letterSpacing: -1.5,
+                ),
+                displayMedium: TextStyle(
+                  fontSize: 56,
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: -0.5,
+                ),
+                displaySmall: TextStyle(
+                  fontSize: 44,
+                  fontWeight: FontWeight.w400,
+                ),
+                headlineLarge: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: 0.25,
+                ),
+                headlineMedium: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w400,
+                ),
+                headlineSmall: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ),
+            darkTheme: ThemeData(
+              colorScheme: darkScheme,
+              useMaterial3: true,
+              fontFamily: 'Roboto',
+              textTheme: const TextTheme(
+                displayLarge: TextStyle(
+                  fontSize: 72,
+                  fontWeight: FontWeight.w300,
+                  letterSpacing: -1.5,
+                ),
+                displayMedium: TextStyle(
+                  fontSize: 56,
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: -0.5,
+                ),
+                displaySmall: TextStyle(
+                  fontSize: 44,
+                  fontWeight: FontWeight.w400,
+                ),
+                headlineLarge: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: 0.25,
+                ),
+                headlineMedium: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w400,
+                ),
+                headlineSmall: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ),
+            home: const HomeScreen(),
+          ),
+        );
+      },
     );
   }
 }

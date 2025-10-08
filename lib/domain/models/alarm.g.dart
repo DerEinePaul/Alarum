@@ -20,7 +20,7 @@ class AlarmAdapter extends TypeAdapter<Alarm> {
       id: fields[0] as String,
       time: fields[1] as DateTime,
       label: fields[2] as String,
-      groupId: fields[4] as String,
+      groupId: fields[4] as String?,
       isActive: fields[3] as bool,
       sound: fields[5] as String,
       repeat: fields[6] as bool,

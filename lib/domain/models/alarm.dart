@@ -19,7 +19,7 @@ class Alarm extends HiveObject implements Identifiable {
   bool isActive;
 
   @HiveField(4)
-  final String groupId; // Required - no nullable
+  final String? groupId; // Optional - can be null for ungrouped alarms
 
   @HiveField(5)
   final String sound;
@@ -40,7 +40,7 @@ class Alarm extends HiveObject implements Identifiable {
     required this.id,
     required this.time,
     required this.label,
-    required this.groupId, // Required parameter
+    this.groupId, // Optional parameter - defaults to null
     this.isActive = true,
     this.sound = 'default',
     this.repeat = false,

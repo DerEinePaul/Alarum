@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AppSettings extends ChangeNotifier {
   static AppSettings? _instance;
@@ -8,24 +9,64 @@ class AppSettings extends ChangeNotifier {
     return _instance!;
   }
   
-  AppSettings._internal();
+  AppSettings._internal() {
+    _loadSettings();
+  }
   
   bool _is24HourFormat = true;
   String _language = 'de'; // 'de' oder 'en'
+  ThemeMode _themeMode = ThemeMode.system; // Dark/Light/System
   
   bool get is24HourFormat => _is24HourFormat;
   String get language => _language;
+  ThemeMode get themeMode => _themeMode;
+  
+  // Load settings from SharedPreferences
+  Future<void> _loadSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _is24HourFormat = prefs.getBool('is24HourFormat') ?? true;
+      _language = prefs.getString('language') ?? 'de';
+      
+      final themeModeIndex = prefs.getInt('themeMode') ?? 0;
+      _themeMode = ThemeMode.values[themeModeIndex];
+      
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ Fehler beim Laden der Einstellungen: $e');
+    }
+  }
+  
+  // Save settings to SharedPreferences
+  Future<void> _saveSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is24HourFormat', _is24HourFormat);
+      await prefs.setString('language', _language);
+      await prefs.setInt('themeMode', _themeMode.index);
+    } catch (e) {
+      debugPrint('❌ Fehler beim Speichern der Einstellungen: $e');
+    }
+  }
   
   void toggle24HourFormat() {
     _is24HourFormat = !_is24HourFormat;
+    _saveSettings();
     notifyListeners();
   }
   
   void setLanguage(String newLanguage) {
     if (newLanguage == 'de' || newLanguage == 'en') {
       _language = newLanguage;
+      _saveSettings();
       notifyListeners();
     }
+  }
+  
+  void setThemeMode(ThemeMode mode) {
+    _themeMode = mode;
+    _saveSettings();
+    notifyListeners();
   }
   
   String formatTime(DateTime time) {

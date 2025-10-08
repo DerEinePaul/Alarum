@@ -1,111 +1,80 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:dynamic_color/dynamic_color.dart';
-// Conditional import für Workmanager (Mobile vs Web)
-import 'package:workmanager/workmanager.dart' if (dart.library.html) 'web_stubs/workmanager.dart';
+import 'dart:io' show Platform;
+
+// Core
 import 'core/services/alarm_service.dart';
 import 'core/settings/app_settings.dart';
+
+// Data Layer
 import 'data/repositories/alarm_repository.dart';
 import 'data/repositories/alarm_group_repository.dart';
+import 'data/repositories/label_repository.dart';
+import 'data/services/android_alarm_scheduler.dart';
+import 'data/services/android_notification_manager.dart';
+import 'data/services/android_permission_manager.dart';
+
+// Domain Layer
 import 'domain/models/alarm.dart';
 import 'domain/models/alarm_group.dart';
+import 'domain/services/alarm_scheduler.dart';
+import 'domain/services/notification_manager.dart';
+import 'domain/services/permission_manager.dart';
+
+// Presentation Layer
 import 'presentation/providers/alarm_provider.dart';
 import 'presentation/providers/alarm_group_provider.dart';
 import 'presentation/providers/stopwatch_provider.dart';
 import 'presentation/providers/timer_provider.dart';
-import 'data/repositories/label_repository.dart';
 import 'presentation/providers/label_provider.dart';
+import 'presentation/controllers/alarm_controller.dart';
+import 'presentation/controllers/alarm_permission_controller.dart';
 import 'presentation/screens/home_screen.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
-/// Background task handler für Workmanager (nur Mobile)
-@pragma('vm:entry-point')
-void callbackDispatcher() {
-  // Nur auf Mobile Plattformen ausführen
-  if (kIsWeb) return;
-  
-  Workmanager().executeTask((task, inputData) async {
-    debugPrint("🔧 Background Task: $task");
-    
-    try {
-      // Initialisiere minimal AlarmService für Background
-      await AlarmService.initialize();
-      
-      switch (task) {
-        case 'alarm_task':
-          final alarmId = inputData?['alarmId'] as String?;
-          if (alarmId != null) {
-            debugPrint("⏰ Background Alarm triggered: $alarmId");
-            await AlarmService.showCriticalNotification(
-              alarmId,
-              'Alarm!',
-              'Weckzeit erreicht',
-            );
-            await AlarmService.playAlarmSound();
-          }
-          break;
-          
-        case 'timer_task':
-          final timerDuration = inputData?['duration'] as int?;
-          if (timerDuration != null) {
-            debugPrint("⏲️ Background Timer finished: ${timerDuration}min");
-            await AlarmService.showCriticalNotification(
-              'timer_${DateTime.now().millisecondsSinceEpoch}',
-              'Timer beendet!',
-              'Timer ($timerDuration Minuten) ist abgelaufen',
-            );
-            await AlarmService.playAlarmSound();
-          }
-          break;
-          
-        default:
-          debugPrint("🔧 Unbekannte Background Task: $task");
-      }
-    } catch (e) {
-      debugPrint("❌ Background Task Error: $e");
-    }
-    
-    return Future.value(true);
-  });
-}
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // ═══════════════════════════════════════════════════════════
+  // HIVE INITIALIZATION
+  // ═══════════════════════════════════════════════════════════
   await Hive.initFlutter();
   Hive.registerAdapter(AlarmAdapter());
   Hive.registerAdapter(AlarmGroupAdapter());
-  // Ensure boxes exist
+  
+  // Open Hive Boxes
   await Hive.openBox<Alarm>('alarms');
   await Hive.openBox<AlarmGroup>('alarm_groups');
   await Hive.openBox('labels');
-
-  // Initialize notifications
-  const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('app_icon');
-  const InitializationSettings initializationSettings = InitializationSettings(android: initializationSettingsAndroid);
+  
+  // ═══════════════════════════════════════════════════════════
+  // NOTIFICATION INITIALIZATION
+  // ═══════════════════════════════════════════════════════════
+  const AndroidInitializationSettings initializationSettingsAndroid = 
+      AndroidInitializationSettings('app_icon');
+  const InitializationSettings initializationSettings = 
+      InitializationSettings(android: initializationSettingsAndroid);
   await flutterLocalNotificationsPlugin.initialize(initializationSettings);
-
-  // Initialize alarm service
+  
+  // ═══════════════════════════════════════════════════════════
+  // ANDROID NOTIFICATION CHANNELS
+  // ═══════════════════════════════════════════════════════════
+  if (!kIsWeb && Platform.isAndroid) {
+    final notificationManager = AndroidNotificationManager();
+    await notificationManager.initializeChannels();
+    debugPrint('✅ Android notification channels initialized');
+  }
+  
+  // ═══════════════════════════════════════════════════════════
+  // ALARM SERVICE
+  // ═══════════════════════════════════════════════════════════
   await AlarmService.initialize();
   
-  // Initialize Workmanager für Background-Alarme (nur Mobile)
-  if (!kIsWeb) {
-    try {
-      await Workmanager().initialize(
-        callbackDispatcher,
-        isInDebugMode: kDebugMode,
-      );
-      debugPrint("✅ Workmanager initialisiert für Background-Alarme");
-    } catch (e) {
-      debugPrint("❌ Workmanager Initialisierung fehlgeschlagen: $e");
-    }
-  } else {
-    debugPrint("ℹ️ Web-Plattform: Workmanager übersprungen");
-  }
-
   runApp(const MyApp());
 }
 
@@ -114,47 +83,97 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DynamicColorBuilder(
-      builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
-        ColorScheme lightScheme;
-        ColorScheme darkScheme;
+    return MultiProvider(
+      providers: [
+        // ═══════════════════════════════════════════════════════════
+        // SETTINGS
+        // ═══════════════════════════════════════════════════════════
+        ChangeNotifierProvider<AppSettings>(create: (_) => AppSettings()),
+        
+        // ═══════════════════════════════════════════════════════════
+        // PLATFORM SERVICES (Conditional Android)
+        // ═══════════════════════════════════════════════════════════
+        if (!kIsWeb && Platform.isAndroid) ...[
+          Provider<AlarmScheduler>(create: (_) => AndroidAlarmScheduler()),
+          Provider<NotificationManager>(create: (_) => AndroidNotificationManager()),
+          Provider<PermissionManager>(create: (_) => AndroidPermissionManager()),
+        ],
+        
+        // ═══════════════════════════════════════════════════════════
+        // REPOSITORIES
+        // ═══════════════════════════════════════════════════════════
+        Provider<AlarmRepository>(create: (_) => HiveAlarmRepository()),
+        Provider<AlarmGroupRepository>(create: (_) => HiveAlarmGroupRepository()),
+        Provider<LabelRepository>(create: (_) => HiveLabelRepository()),
+        
+        // ═══════════════════════════════════════════════════════════
+        // CONTROLLERS (New Clean Architecture)
+        // ═══════════════════════════════════════════════════════════
+        if (!kIsWeb && Platform.isAndroid) ...[
+          ChangeNotifierProxyProvider<PermissionManager, AlarmPermissionController>(
+            create: (_) => AlarmPermissionController(AndroidPermissionManager()),
+            update: (context, permissionManager, previous) {
+              if (previous != null) {
+                return previous;
+              }
+              final controller = AlarmPermissionController(permissionManager);
+              // Delayed init to avoid blocking startup
+              Future.microtask(() => controller.checkAllPermissions());
+              return controller;
+            },
+          ),
+          ChangeNotifierProxyProvider2<AlarmRepository, AlarmScheduler, AlarmController>(
+            create: (_) => AlarmController(HiveAlarmRepository(), AndroidAlarmScheduler()),
+            update: (context, repository, scheduler, previous) {
+              if (previous != null) {
+                return previous;
+              }
+              final controller = AlarmController(repository, scheduler);
+              // Delayed init to avoid blocking startup
+              Future.microtask(() => controller.initialize());
+              return controller;
+            },
+          ),
+        ],
+        
+        // ═══════════════════════════════════════════════════════════
+        // LEGACY PROVIDERS (Keep for backwards compatibility)
+        // ═══════════════════════════════════════════════════════════
+        ChangeNotifierProxyProvider<AlarmRepository, AlarmProvider>(
+          create: (context) => AlarmProvider(context.read<AlarmRepository>()),
+          update: (context, repository, previous) => previous ?? AlarmProvider(repository),
+        ),
+        ChangeNotifierProxyProvider<AlarmGroupRepository, AlarmGroupProvider>(
+          create: (context) => AlarmGroupProvider(context.read<AlarmGroupRepository>()),
+          update: (context, repository, previous) => previous ?? AlarmGroupProvider(repository),
+        ),
+        ChangeNotifierProvider<LabelProvider>(
+          create: (context) => LabelProvider(context.read<LabelRepository>()),
+        ),
+        
+        // ═══════════════════════════════════════════════════════════
+        // UTILITY PROVIDERS
+        // ═══════════════════════════════════════════════════════════
+        ChangeNotifierProvider<StopwatchProvider>(create: (_) => StopwatchProvider()),
+        ChangeNotifierProvider<TimerProvider>(create: (_) => TimerProvider(const Duration(minutes: 5))),
+      ],
+      // Wrap MaterialApp mit Consumer für Theme-Reaktivität
+      child: Consumer<AppSettings>(
+        builder: (context, settings, _) {
+          return DynamicColorBuilder(
+            builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
+              // Material You Dynamic Colors - IMMER aktiviert!
+              final lightScheme = (lightDynamic != null)
+                  ? lightDynamic
+                  : ColorScheme.fromSeed(seedColor: Colors.deepPurple, brightness: Brightness.light);
+              
+              final darkScheme = (darkDynamic != null)
+                  ? darkDynamic
+                  : ColorScheme.fromSeed(seedColor: Colors.deepPurple, brightness: Brightness.dark);
 
-        if (lightDynamic != null && darkDynamic != null) {
-          // Use dynamic colors from the system
-          lightScheme = lightDynamic;
-          darkScheme = darkDynamic;
-        } else {
-          // Fallback to static colors
-          lightScheme = ColorScheme.fromSeed(
-            seedColor: Colors.deepPurple,
-            brightness: Brightness.light,
-          );
-          darkScheme = ColorScheme.fromSeed(
-            seedColor: Colors.deepPurple,
-            brightness: Brightness.dark,
-          );
-        }
-
-        return MultiProvider(
-          providers: [
-            ChangeNotifierProvider<AppSettings>(create: (_) => AppSettings()),
-            Provider<AlarmRepository>(create: (_) => HiveAlarmRepository()),
-            Provider<AlarmGroupRepository>(create: (_) => HiveAlarmGroupRepository()),
-            ChangeNotifierProxyProvider<AlarmRepository, AlarmProvider>(
-              create: (context) => AlarmProvider(context.read<AlarmRepository>()),
-              update: (context, repository, previous) => previous ?? AlarmProvider(repository),
-            ),
-            ChangeNotifierProxyProvider<AlarmGroupRepository, AlarmGroupProvider>(
-              create: (context) => AlarmGroupProvider(context.read<AlarmGroupRepository>()),
-              update: (context, repository, previous) => previous ?? AlarmGroupProvider(repository),
-            ),
-            ChangeNotifierProvider<StopwatchProvider>(create: (_) => StopwatchProvider()),
-            ChangeNotifierProvider<TimerProvider>(create: (_) => TimerProvider(const Duration(minutes: 5))),
-            Provider<LabelRepository>(create: (_) => HiveLabelRepository()),
-            ChangeNotifierProvider<LabelProvider>(create: (context) => LabelProvider(context.read<LabelRepository>())),
-          ],
-          child: MaterialApp(
-            title: 'Alarum',
+              return MaterialApp(
+                title: 'Alarum',
+                themeMode: settings.themeMode, // Dark/Light/System aus Settings!
             theme: ThemeData(
               colorScheme: lightScheme,
               useMaterial3: true,
@@ -185,13 +204,13 @@ class MyApp extends StatelessWidget {
                 ),
                 headlineSmall: TextStyle(
                   fontSize: 24,
-                  fontWeight: FontWeight.w400,
+                    fontWeight: FontWeight.w400,
+                  ),
                 ),
               ),
-            ),
-            darkTheme: ThemeData(
-              colorScheme: darkScheme,
-              useMaterial3: true,
+              darkTheme: ThemeData(
+                colorScheme: darkScheme,
+                useMaterial3: true,
               fontFamily: 'Roboto',
               textTheme: const TextTheme(
                 displayLarge: TextStyle(
@@ -219,14 +238,16 @@ class MyApp extends StatelessWidget {
                 ),
                 headlineSmall: TextStyle(
                   fontSize: 24,
-                  fontWeight: FontWeight.w400,
+                    fontWeight: FontWeight.w400,
+                  ),
                 ),
               ),
-            ),
-            home: const HomeScreen(),
-          ),
+              home: const HomeScreen(),
+            );
+          },
         );
       },
+      ),
     );
   }
 }

@@ -100,9 +100,10 @@ class TimerProvider with ChangeNotifier {
     if (kIsWeb) return;
     
     try {
-      final uniqueName = 'timer_${DateTime.now().millisecondsSinceEpoch}';
-      
       // TODO: Workmanager Task scheduling wird zur Laufzeit dynamisch geladen
+      // Unique name würde hier verwendet werden für Task-Identifikation
+      // final uniqueName = 'timer_${DateTime.now().millisecondsSinceEpoch}';
+      
       // if (!kIsWeb) {
       //   Workmanager().registerOneOffTask(
       //     uniqueName,

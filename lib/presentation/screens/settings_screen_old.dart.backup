@@ -23,7 +23,7 @@ class SettingsScreen extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             children: [
               // ═══════════════════════════════════════════════════════════
-              // THEME SETTINGS
+              // THEME SETTINGS (NEU!)
               // ═══════════════════════════════════════════════════════════
               Text(
                 settings.getText('appearance'),
@@ -100,10 +100,43 @@ class SettingsScreen extends StatelessWidget {
               
               const SizedBox(height: 16),
               
-              // Theme Preview Card mit Material You Info
+              // Dynamic Colors Toggle
               Card(
                 elevation: 0,
-                color: colorScheme.primaryContainer.withOpacity(0.5),
+                color: colorScheme.surfaceContainerHighest,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: SwitchListTile(
+                  secondary: Icon(
+                    Icons.auto_awesome_outlined,
+                    color: colorScheme.primary,
+                  ),
+                  title: Text(
+                    settings.getText('dynamicColors'),
+                    style: TextStyle(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(
+                    settings.getText('dynamicColorsDesc'),
+                    style: TextStyle(
+                      color: colorScheme.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
+                  ),
+                  value: settings.useDynamicColors,
+                  onChanged: (value) => settings.setDynamicColors(value),
+                  activeColor: colorScheme.primary,
+                  activeTrackColor: colorScheme.primaryContainer,
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // Theme Preview Card
+              Card(
+                elevation: 0,
+                color: colorScheme.primaryContainer.withValues(alpha: 0.5),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Padding(
                   padding: const EdgeInsets.all(20),
@@ -126,7 +159,7 @@ class SettingsScreen extends StatelessWidget {
                       Text(
                         isDark ? settings.getText('darkMode') : settings.getText('lightMode'),
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onPrimaryContainer.withOpacity(0.8),
+                          color: colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -141,38 +174,6 @@ class SettingsScreen extends StatelessWidget {
                           const SizedBox(width: 8),
                           _ColorCircle(color: colorScheme.tertiary, label: 'Tertiary'),
                         ],
-                      ),
-                      const SizedBox(height: 12),
-                      
-                      // Material You Badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: colorScheme.onPrimaryContainer.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: colorScheme.onPrimaryContainer.withOpacity(0.3),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.auto_awesome,
-                              size: 16,
-                              color: colorScheme.onPrimaryContainer,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Material You',
-                              style: TextStyle(
-                                color: colorScheme.onPrimaryContainer,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
                     ],
                   ),
@@ -193,16 +194,22 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              
               Card(
-                elevation: 0,
-                color: colorScheme.surfaceContainerHighest,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Text(
+                        settings.getText('language'),
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: colorScheme.onSurface,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       RadioListTile<String>(
                         title: Text(settings.getText('german')),
                         value: 'de',
@@ -245,6 +252,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               
+              // Uhrzeitformat
               Card(
                 elevation: 0,
                 color: colorScheme.surfaceContainerHighest,
@@ -254,6 +262,14 @@ class SettingsScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Text(
+                        settings.getText('timeFormat'),
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: colorScheme.onSurface,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       RadioListTile<bool>(
                         title: Text(settings.getText('24hour')),
                         subtitle: Text(settings.formatTime(DateTime.now().copyWith(hour: 14, minute: 30))),
@@ -288,7 +304,7 @@ class SettingsScreen extends StatelessWidget {
               // Preview der aktuellen Zeit
               Card(
                 elevation: 0,
-                color: colorScheme.tertiaryContainer.withOpacity(0.5),
+                color: colorScheme.tertiaryContainer.withValues(alpha: 0.5),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Padding(
                   padding: const EdgeInsets.all(24),
@@ -360,7 +376,7 @@ class _ThemeModeOption extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
           color: isSelected 
-              ? colorScheme.primaryContainer.withOpacity(0.5)
+              ? colorScheme.primaryContainer.withValues(alpha: 0.5)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
@@ -422,13 +438,10 @@ class _ColorCircle extends StatelessWidget {
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.4),
+              color: color.withValues(alpha: 0.4),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
           ],
         ),
-      ),
-    );
-  }
 }

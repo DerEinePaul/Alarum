@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'dart:html' as html;
+import 'package:url_launcher/url_launcher.dart';
 import '../widgets/clock_widget.dart';
 import '../widgets/stopwatch_widget.dart';
 import '../widgets/timer_widget.dart';
 import '../widgets/grouped_alarm_list_widget.dart';
-import '../widgets/create_alarm_dialog.dart';
+import '../widgets/dialogs/unified_create_alarm_dialog.dart';
 import '../../core/settings/app_settings.dart';
 import 'settings_screen.dart';
 
@@ -303,18 +303,17 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _launchGitHub() {
-    html.window.open('https://github.com/DerEinePaul/Alarum', '_blank');
+  Future<void> _launchGitHub() async {
+    final Uri url = Uri.parse('https://github.com/DerEinePaul/Alarum');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      // Fallback wenn URL nicht geöffnet werden kann
+    }
   }
 
   void _showQuickCreateAlarmDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => CreateAlarmDialog(
-        onAlarmCreated: (_) {
-          // Alarm wurde erstellt, Provider wird automatisch aktualisiert
-        },
-      ),
+      builder: (context) => const UnifiedCreateAlarmDialog(),
     );
   }
 }

@@ -1,55 +1,37 @@
-import 'package:hive_flutter/hive_flutter.dart';
+import 'hive_repository.dart';
 import '../../domain/models/alarm_group.dart';
+import '../../presentation/providers/crud_provider.dart';
 
-abstract class AlarmGroupRepository {
-  Future<List<AlarmGroup>> getAllGroups();
-  Future<AlarmGroup?> getGroupById(String id);
-  Future<void> addGroup(AlarmGroup group);
-  Future<void> updateGroup(AlarmGroup group);
-  Future<void> deleteGroup(String id);
-  Future<void> toggleGroup(String id);
+abstract class AlarmGroupRepository implements CrudRepository<AlarmGroup> {
+  @override
+  Future<List<AlarmGroup>> getAll();
+
+  @override
+  Future<AlarmGroup?> getById(String id);
+
+  @override
+  Future<void> add(AlarmGroup item);
+
+  @override
+  Future<void> update(AlarmGroup item);
+
+  @override
+  Future<void> delete(String id);
+
+  @override
+  Future<void> toggle(String id);
 }
 
-class HiveAlarmGroupRepository implements AlarmGroupRepository {
-  static const String boxName = 'alarm_groups';
+class HiveAlarmGroupRepository extends HiveRepository<AlarmGroup> implements AlarmGroupRepository {
+  @override
+  String get boxName => 'alarm_groups';
 
   @override
-  Future<List<AlarmGroup>> getAllGroups() async {
-    final box = await Hive.openBox<AlarmGroup>(boxName);
-    return box.values.toList();
-  }
-
-  @override
-  Future<AlarmGroup?> getGroupById(String id) async {
-    final box = await Hive.openBox<AlarmGroup>(boxName);
-    return box.get(id);
-  }
-
-  @override
-  Future<void> addGroup(AlarmGroup group) async {
-    final box = await Hive.openBox<AlarmGroup>(boxName);
-    await box.put(group.id, group);
-  }
-
-  @override
-  Future<void> updateGroup(AlarmGroup group) async {
-    final box = await Hive.openBox<AlarmGroup>(boxName);
-    await box.put(group.id, group);
-  }
-
-  @override
-  Future<void> deleteGroup(String id) async {
-    final box = await Hive.openBox<AlarmGroup>(boxName);
-    await box.delete(id);
-  }
-
-  @override
-  Future<void> toggleGroup(String id) async {
-    final box = await Hive.openBox<AlarmGroup>(boxName);
-    final group = box.get(id);
+  Future<void> toggle(String id) async {
+    final group = await getById(id);
     if (group != null) {
       final updatedGroup = group.copyWith(isActive: !group.isActive);
-      await box.put(id, updatedGroup);
+      await update(updatedGroup);
     }
   }
 }

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'dart:io' show Platform;
+import 'package:dynamic_color/dynamic_color.dart';
+// Conditional import für Workmanager (Mobile vs Web)
+import 'package:workmanager/workmanager.dart' if (dart.library.html) 'web_stubs/workmanager.dart';
 import 'core/services/alarm_service.dart';
+import 'core/settings/app_settings.dart';
 import 'data/repositories/alarm_repository.dart';
 import 'data/repositories/alarm_group_repository.dart';
 import 'domain/models/alarm.dart';
@@ -12,71 +16,61 @@ import 'presentation/providers/alarm_provider.dart';
 import 'presentation/providers/alarm_group_provider.dart';
 import 'presentation/providers/stopwatch_provider.dart';
 import 'presentation/providers/timer_provider.dart';
+import 'data/repositories/label_repository.dart';
+import 'presentation/providers/label_provider.dart';
 import 'presentation/screens/home_screen.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
-// Cross-platform color scheme builder
-class CrossPlatformColorBuilder extends StatefulWidget {
-  final Widget Function(ColorScheme lightScheme, ColorScheme darkScheme) builder;
-
-  const CrossPlatformColorBuilder({super.key, required this.builder});
-
-  @override
-  State<CrossPlatformColorBuilder> createState() => _CrossPlatformColorBuilderState();
-}
-
-class _CrossPlatformColorBuilderState extends State<CrossPlatformColorBuilder> {
-  ColorScheme? _lightScheme;
-  ColorScheme? _darkScheme;
-
-  @override
-  void initState() {
-    super.initState();
-    _initializeColors();
-  }
-
-  Future<void> _initializeColors() async {
-    if (Platform.isAndroid) {
-      try {
-        // Try to use dynamic colors on Android
-        // Note: This is a simplified version. In a real app, you'd use the dynamic_color package
-        // For now, we'll just use the fallback colors
-        _setFallbackColors();
-      } catch (e) {
-        _setFallbackColors();
+/// Background task handler für Workmanager (nur Mobile)
+@pragma('vm:entry-point')
+void callbackDispatcher() {
+  // Nur auf Mobile Plattformen ausführen
+  if (kIsWeb) return;
+  
+  Workmanager().executeTask((task, inputData) async {
+    debugPrint("🔧 Background Task: $task");
+    
+    try {
+      // Initialisiere minimal AlarmService für Background
+      await AlarmService.initialize();
+      
+      switch (task) {
+        case 'alarm_task':
+          final alarmId = inputData?['alarmId'] as String?;
+          if (alarmId != null) {
+            debugPrint("⏰ Background Alarm triggered: $alarmId");
+            await AlarmService.showCriticalNotification(
+              alarmId,
+              'Alarm!',
+              'Weckzeit erreicht',
+            );
+            await AlarmService.playAlarmSound();
+          }
+          break;
+          
+        case 'timer_task':
+          final timerDuration = inputData?['duration'] as int?;
+          if (timerDuration != null) {
+            debugPrint("⏲️ Background Timer finished: ${timerDuration}min");
+            await AlarmService.showCriticalNotification(
+              'timer_${DateTime.now().millisecondsSinceEpoch}',
+              'Timer beendet!',
+              'Timer ($timerDuration Minuten) ist abgelaufen',
+            );
+            await AlarmService.playAlarmSound();
+          }
+          break;
+          
+        default:
+          debugPrint("🔧 Unbekannte Background Task: $task");
       }
-    } else {
-      _setFallbackColors();
+    } catch (e) {
+      debugPrint("❌ Background Task Error: $e");
     }
-  }
-
-  void _setFallbackColors() {
-    setState(() {
-      _lightScheme = ColorScheme.fromSeed(
-        seedColor: Colors.deepPurple,
-        brightness: Brightness.light,
-      );
-      _darkScheme = ColorScheme.fromSeed(
-        seedColor: Colors.deepPurple,
-        brightness: Brightness.dark,
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_lightScheme == null || _darkScheme == null) {
-      // Loading state
-      return const MaterialApp(
-        home: Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
-      );
-    }
-
-    return widget.builder(_lightScheme!, _darkScheme!);
-  }
+    
+    return Future.value(true);
+  });
 }
 
 void main() async {
@@ -84,6 +78,10 @@ void main() async {
   await Hive.initFlutter();
   Hive.registerAdapter(AlarmAdapter());
   Hive.registerAdapter(AlarmGroupAdapter());
+  // Ensure boxes exist
+  await Hive.openBox<Alarm>('alarms');
+  await Hive.openBox<AlarmGroup>('alarm_groups');
+  await Hive.openBox('labels');
 
   // Initialize notifications
   const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('app_icon');
@@ -92,6 +90,21 @@ void main() async {
 
   // Initialize alarm service
   await AlarmService.initialize();
+  
+  // Initialize Workmanager für Background-Alarme (nur Mobile)
+  if (!kIsWeb) {
+    try {
+      await Workmanager().initialize(
+        callbackDispatcher,
+        isInDebugMode: kDebugMode,
+      );
+      debugPrint("✅ Workmanager initialisiert für Background-Alarme");
+    } catch (e) {
+      debugPrint("❌ Workmanager Initialisierung fehlgeschlagen: $e");
+    }
+  } else {
+    debugPrint("ℹ️ Web-Plattform: Workmanager übersprungen");
+  }
 
   runApp(const MyApp());
 }
@@ -101,11 +114,30 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CrossPlatformColorBuilder(
-      builder: (ColorScheme lightScheme, ColorScheme darkScheme) {
+    return DynamicColorBuilder(
+      builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
+        ColorScheme lightScheme;
+        ColorScheme darkScheme;
+
+        if (lightDynamic != null && darkDynamic != null) {
+          // Use dynamic colors from the system
+          lightScheme = lightDynamic;
+          darkScheme = darkDynamic;
+        } else {
+          // Fallback to static colors
+          lightScheme = ColorScheme.fromSeed(
+            seedColor: Colors.deepPurple,
+            brightness: Brightness.light,
+          );
+          darkScheme = ColorScheme.fromSeed(
+            seedColor: Colors.deepPurple,
+            brightness: Brightness.dark,
+          );
+        }
 
         return MultiProvider(
           providers: [
+            ChangeNotifierProvider<AppSettings>(create: (_) => AppSettings()),
             Provider<AlarmRepository>(create: (_) => HiveAlarmRepository()),
             Provider<AlarmGroupRepository>(create: (_) => HiveAlarmGroupRepository()),
             ChangeNotifierProxyProvider<AlarmRepository, AlarmProvider>(
@@ -118,6 +150,8 @@ class MyApp extends StatelessWidget {
             ),
             ChangeNotifierProvider<StopwatchProvider>(create: (_) => StopwatchProvider()),
             ChangeNotifierProvider<TimerProvider>(create: (_) => TimerProvider(const Duration(minutes: 5))),
+            Provider<LabelRepository>(create: (_) => HiveLabelRepository()),
+            ChangeNotifierProvider<LabelProvider>(create: (context) => LabelProvider(context.read<LabelRepository>())),
           ],
           child: MaterialApp(
             title: 'Alarum',

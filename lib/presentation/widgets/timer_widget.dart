@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/constants.dart';
 import '../providers/timer_provider.dart';
 
 class TimerWidget extends StatelessWidget {
@@ -29,10 +30,8 @@ class TimerWidget extends StatelessWidget {
                 child: Text(
                   _formatDuration(state.remaining),
                   key: ValueKey<String>(_formatDuration(state.remaining)),
-                  style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                  style: AppConstants.displayTextStyle(context).copyWith(
                     color: state.isRunning ? colorScheme.primary : colorScheme.onSurface,
-                    fontWeight: FontWeight.w300,
-                    fontFeatures: [const FontFeature.tabularFigures()],
                   ),
                 ),
               ),
@@ -42,12 +41,7 @@ class TimerWidget extends StatelessWidget {
                 children: [
                   FilledButton.tonal(
                     onPressed: state.isRunning ? provider.pause : provider.start,
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
+                    style: AppConstants.filledTonalButtonStyle(context),
                     child: Text(
                       state.isRunning ? 'Pause' : 'Start',
                       style: const TextStyle(fontSize: 18),
@@ -56,12 +50,7 @@ class TimerWidget extends StatelessWidget {
                   const SizedBox(width: 16),
                   OutlinedButton(
                     onPressed: provider.reset,
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
+                    style: AppConstants.outlinedButtonStyle(context),
                     child: const Text(
                       'Reset',
                       style: TextStyle(fontSize: 18),
@@ -71,12 +60,7 @@ class TimerWidget extends StatelessWidget {
                     const SizedBox(width: 16),
                     FilledButton(
                       onPressed: provider.resume,
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
+                      style: AppConstants.filledButtonStyle(context),
                       child: const Text(
                         'Resume',
                         style: TextStyle(fontSize: 18),
@@ -87,10 +71,8 @@ class TimerWidget extends StatelessWidget {
               ),
               const SizedBox(height: 32),
               Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
+                elevation: AppConstants.defaultElevation,
+                shape: AppConstants.cardShape,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Row(

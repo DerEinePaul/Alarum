@@ -20,14 +20,16 @@ class AlarmGroupAdapter extends TypeAdapter<AlarmGroup> {
       id: fields[0] as String,
       name: fields[1] as String,
       isActive: fields[2] as bool,
-      alarmIds: (fields[3] as List).cast<String>(),
+      description: fields[3] as String,
+      createdAt: fields[4] as DateTime?,
+      color: fields[5] as int,
     );
   }
 
   @override
   void write(BinaryWriter writer, AlarmGroup obj) {
     writer
-      ..writeByte(4)
+      ..writeByte(6)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -35,7 +37,11 @@ class AlarmGroupAdapter extends TypeAdapter<AlarmGroup> {
       ..writeByte(2)
       ..write(obj.isActive)
       ..writeByte(3)
-      ..write(obj.alarmIds);
+      ..write(obj.description)
+      ..writeByte(4)
+      ..write(obj.createdAt)
+      ..writeByte(5)
+      ..write(obj.color);
   }
 
   @override

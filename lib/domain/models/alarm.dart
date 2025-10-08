@@ -1,9 +1,11 @@
 import 'package:hive/hive.dart';
+import 'identifiable.dart';
 
 part 'alarm.g.dart';
 
 @HiveType(typeId: 0)
-class Alarm extends HiveObject {
+class Alarm extends HiveObject implements Identifiable {
+  @override
   @HiveField(0)
   final String id;
 
@@ -17,7 +19,7 @@ class Alarm extends HiveObject {
   bool isActive;
 
   @HiveField(4)
-  final String? groupId;
+  final String groupId; // Required - no nullable
 
   @HiveField(5)
   final String sound;
@@ -28,15 +30,23 @@ class Alarm extends HiveObject {
   @HiveField(7)
   final List<int> repeatDays; // 0-6 for Mon-Sun
 
+  @HiveField(8)
+  final bool vibrate;
+
+  @HiveField(9)
+  final String ringtone;
+
   Alarm({
     required this.id,
     required this.time,
     required this.label,
+    required this.groupId, // Required parameter
     this.isActive = true,
-    this.groupId,
     this.sound = 'default',
     this.repeat = false,
     this.repeatDays = const [],
+    this.vibrate = true,
+    this.ringtone = 'default',
   });
 
   Alarm copyWith({
@@ -48,6 +58,8 @@ class Alarm extends HiveObject {
     String? sound,
     bool? repeat,
     List<int>? repeatDays,
+    bool? vibrate,
+    String? ringtone,
   }) {
     return Alarm(
       id: id ?? this.id,
@@ -58,6 +70,21 @@ class Alarm extends HiveObject {
       sound: sound ?? this.sound,
       repeat: repeat ?? this.repeat,
       repeatDays: repeatDays ?? this.repeatDays,
+      vibrate: vibrate ?? this.vibrate,
+      ringtone: ringtone ?? this.ringtone,
     );
+  }
+
+  String get formattedTime => '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+
+  String get repeatDaysText {
+    if (!repeat || repeatDays.isEmpty) return 'Einmalig';
+    if (repeatDays.length == 7) return 'Täglich';
+    if (repeatDays.length == 5 && !repeatDays.contains(5) && !repeatDays.contains(6)) {
+      return 'Werktags';
+    }
+    
+    const dayNames = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    return repeatDays.map((day) => dayNames[day]).join(', ');
   }
 }

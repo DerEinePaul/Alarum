@@ -20,18 +20,20 @@ class AlarmAdapter extends TypeAdapter<Alarm> {
       id: fields[0] as String,
       time: fields[1] as DateTime,
       label: fields[2] as String,
+      groupId: fields[4] as String,
       isActive: fields[3] as bool,
-      groupId: fields[4] as String?,
       sound: fields[5] as String,
       repeat: fields[6] as bool,
       repeatDays: (fields[7] as List).cast<int>(),
+      vibrate: fields[8] as bool,
+      ringtone: fields[9] as String,
     );
   }
 
   @override
   void write(BinaryWriter writer, Alarm obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(10)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -47,7 +49,11 @@ class AlarmAdapter extends TypeAdapter<Alarm> {
       ..writeByte(6)
       ..write(obj.repeat)
       ..writeByte(7)
-      ..write(obj.repeatDays);
+      ..write(obj.repeatDays)
+      ..writeByte(8)
+      ..write(obj.vibrate)
+      ..writeByte(9)
+      ..write(obj.ringtone);
   }
 
   @override

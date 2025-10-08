@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/constants.dart';
 import '../../domain/models/alarm.dart';
 import '../providers/alarm_provider.dart';
 import '../providers/alarm_group_provider.dart';
@@ -42,12 +43,15 @@ class AlarmListWidget extends StatelessWidget {
                 if (hour != null && minute != null) {
                   final now = DateTime.now();
                   final alarmTime = DateTime(now.year, now.month, now.day, hour, minute);
+                  final groupProvider = context.read<AlarmGroupProvider>();
+                  final availableGroups = groupProvider.items;
                   final alarm = Alarm(
                     id: DateTime.now().toString(),
                     time: alarmTime,
                     label: labelController.text.isEmpty ? 'Alarm' : labelController.text,
+                    groupId: availableGroups.isNotEmpty ? availableGroups.first.id : 'default',
                   );
-                  context.read<AlarmProvider>().addAlarm(alarm);
+                  context.read<AlarmProvider>().addItem(alarm);
                   Navigator.of(context).pop();
                 }
               }
@@ -64,8 +68,8 @@ class AlarmListWidget extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return Consumer2<AlarmProvider, AlarmGroupProvider>(
       builder: (context, alarmProvider, groupProvider, child) {
-        final alarms = alarmProvider.alarms;
-        final groups = groupProvider.groups;
+        final alarms = alarmProvider.items;
+        final groups = groupProvider.items;
 
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -83,18 +87,16 @@ class AlarmListWidget extends StatelessWidget {
                 ),
               ),
               ...groups.map((group) => Card(
-                    elevation: 2,
+                    elevation: AppConstants.defaultElevation,
                     margin: const EdgeInsets.symmetric(vertical: 4),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    shape: AppConstants.cardShape,
                     child: ListTile(
                       title: Text(
                         group.name,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       subtitle: Text(
-                        '${group.alarmIds.length} alarms',
+                        '${alarms.where((alarm) => alarm.groupId == group.id).length} alarms',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),
@@ -102,7 +104,7 @@ class AlarmListWidget extends StatelessWidget {
                       trailing: Switch(
                         value: group.isActive,
                         onChanged: (value) {
-                          groupProvider.toggleGroup(group.id);
+                          groupProvider.toggleItem(group.id);
                         },
                         activeThumbColor: colorScheme.primary,
                       ),
@@ -121,11 +123,9 @@ class AlarmListWidget extends StatelessWidget {
               ),
             ),
             ...alarms.map((alarm) => Card(
-                  elevation: 2,
+                  elevation: AppConstants.defaultElevation,
                   margin: const EdgeInsets.symmetric(vertical: 4),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: AppConstants.cardShape,
                   child: ListTile(
                     title: Text(
                       alarm.label,
@@ -141,7 +141,7 @@ class AlarmListWidget extends StatelessWidget {
                     trailing: Switch(
                       value: alarm.isActive,
                       onChanged: (value) {
-                        alarmProvider.toggleAlarm(alarm.id);
+                        alarmProvider.toggleItem(alarm.id);
                       },
                       activeThumbColor: colorScheme.primary,
                     ),
@@ -154,12 +154,7 @@ class AlarmListWidget extends StatelessWidget {
                 onPressed: () => _showAddAlarmDialog(context),
                 icon: const Icon(Icons.add),
                 label: const Text('Add Alarm'),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
+                style: AppConstants.filledButtonStyle(context),
               ),
             ),
           ],

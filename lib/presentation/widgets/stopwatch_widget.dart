@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/constants.dart';
 import '../providers/stopwatch_provider.dart';
 
 class StopwatchWidget extends StatelessWidget {
@@ -29,10 +30,8 @@ class StopwatchWidget extends StatelessWidget {
                 child: Text(
                   _formatDuration(state.elapsed),
                   key: ValueKey<String>(_formatDuration(state.elapsed)),
-                  style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                  style: AppConstants.displayTextStyle(context).copyWith(
                     color: colorScheme.primary,
-                    fontWeight: FontWeight.w300,
-                    fontFeatures: [const FontFeature.tabularFigures()],
                   ),
                 ),
               ),
@@ -42,12 +41,7 @@ class StopwatchWidget extends StatelessWidget {
                 children: [
                   FilledButton.tonal(
                     onPressed: state.isRunning ? provider.stop : provider.start,
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
+                    style: AppConstants.filledTonalButtonStyle(context),
                     child: Text(
                       state.isRunning ? 'Stop' : 'Start',
                       style: const TextStyle(fontSize: 18),
@@ -56,12 +50,7 @@ class StopwatchWidget extends StatelessWidget {
                   const SizedBox(width: 16),
                   OutlinedButton(
                     onPressed: provider.reset,
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
+                    style: AppConstants.outlinedButtonStyle(context),
                     child: const Text(
                       'Reset',
                       style: TextStyle(fontSize: 18),
@@ -70,12 +59,7 @@ class StopwatchWidget extends StatelessWidget {
                   const SizedBox(width: 16),
                   FilledButton(
                     onPressed: state.isRunning ? provider.lap : null,
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
+                    style: AppConstants.filledButtonStyle(context),
                     child: const Text(
                       'Lap',
                       style: TextStyle(fontSize: 18),
@@ -86,10 +70,8 @@ class StopwatchWidget extends StatelessWidget {
               const SizedBox(height: 32),
               Expanded(
                 child: Card(
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+                  elevation: AppConstants.defaultElevation,
+                  shape: AppConstants.cardShape,
                   child: ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: state.laps.length,
@@ -106,9 +88,7 @@ class StopwatchWidget extends StatelessWidget {
                             ),
                             Text(
                               _formatDuration(lap),
-                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                fontFeatures: [const FontFeature.tabularFigures()],
-                              ),
+                              style: AppConstants.bodyTextStyle(context),
                             ),
                           ],
                         ),
